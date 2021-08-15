@@ -1,2 +1,2 @@
-# template-extension
-Template for pure java minestom extensions
+# AFKstom
+Adds an instance to send AFK players to.

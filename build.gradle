@@ -10,7 +10,7 @@ plugins {
     id 'java'
 }
 
-def displayName = 'TemplateExtension'
+def displayName = 'AFKstom'
 group 'com.github.klainstom'
 version '1.0-SNAPSHOT'
 
