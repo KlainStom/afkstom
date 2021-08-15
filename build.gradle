@@ -1,0 +1,56 @@
+buildscript {
+    repositories {
+        maven { url 'https://repo.spongepowered.org/maven' }
+    }
+}
+
+plugins {
+    id 'com.github.johnrengelman.shadow' version '7.0.0'
+    id 'net.kyori.blossom' version '1.3.0'
+    id 'java'
+}
+
+def displayName = 'TemplateExtension'
+group 'com.github.klainstom'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+    maven { url 'https://repo.spongepowered.org/maven' }
+    maven { url 'https://jitpack.io' }
+}
+
+dependencies {
+    compileOnly('com.github.Minestom:Minestom:new-block-api-SNAPSHOT')
+}
+
+blossom {
+    replaceToken('$version$', version)
+    replaceToken('$group$', group)
+    replaceToken('$name$', displayName)
+}
+
+processResources.expand(
+        'version': version,
+        'group': group,
+        'name': displayName
+)
+
+shadowJar {
+    archiveBaseName.set(displayName)
+    archiveClassifier.set('')
+    archiveVersion.set(project.version.toString())
+}
+
+test {
+    useJUnitPlatform()
+}
+
+build {
+    dependsOn(shadowJar)
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}

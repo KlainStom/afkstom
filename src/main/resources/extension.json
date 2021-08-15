@@ -1,0 +1,16 @@
+{
+  "entrypoint": "${group}.${name.toLowerCase()}.ExtensionMain",
+  "name": "${name}",
+  "version": "${version}",
+  "dependencies": [
+
+  ],
+  "externalDependencies": {
+    "repositories": [
+
+    ],
+    "artifacts": [
+
+    ]
+  }
+}
