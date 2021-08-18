@@ -32,6 +32,7 @@ import java.util.*;
 
 public class ExtensionMain extends Extension {
     public static final InstanceContainer AFK_INSTANCE;
+    public static final Pos SPAWN_POS = new Pos(8.5, 1, 8.5);
 
     private static final Set<Class<? extends PlayerEvent>> ACTIVITY_EVENTS = Set.of(
             AdvancementTabEvent.class,
@@ -109,7 +110,7 @@ public class ExtensionMain extends Extension {
             if (!AFK_INSTANCE.equals(event.getInstance())) return;
             if (!(event.getEntity() instanceof Player)) return;
             final Player player = (Player) event.getEntity();
-            player.setRespawnPoint(new Pos(8.5, 1, 8.5));
+            player.setRespawnPoint(SPAWN_POS);
             player.setAutoViewable(false);
             player.setGameMode(GameMode.ADVENTURE);
         });
@@ -128,8 +129,7 @@ public class ExtensionMain extends Extension {
             event.getPlayer().showTitle(Title.title(Component.text("You are AFK"), Component.empty(),
                     Title.Times.of(Duration.ZERO, Duration.ofDays(30), Duration.ZERO)));
             if (!AFK_INSTANCE.equals(event.getAfkInstance()))
-                // TODO: 18.08.21 add position information
-                event.getPlayer().setInstance(AFK_INSTANCE);
+                event.getPlayer().setInstance(AFK_INSTANCE, SPAWN_POS);
         });
 
         getEventNode().addListener(NoLongerAfkEvent.class, event -> {
