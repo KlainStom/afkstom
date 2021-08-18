@@ -105,6 +105,7 @@ public class ExtensionMain extends Extension {
         AFK_INSTANCE.setChunkGenerator(new EmptyGenerator());
         AFK_INSTANCE.enableAutoChunkLoad(false);
         AFK_INSTANCE.loadChunk(0,0);
+        AFK_INSTANCE.setTimeUpdate(null);
 
         getEventNode().addListener(AddEntityToInstanceEvent.class, event -> {
             if (!AFK_INSTANCE.equals(event.getInstance())) return;
