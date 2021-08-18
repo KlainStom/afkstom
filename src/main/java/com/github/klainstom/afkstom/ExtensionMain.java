@@ -1,5 +1,6 @@
 package com.github.klainstom.afkstom;
 
+import com.github.klainstom.data.AfkstomData;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.title.Title;
 import net.minestom.server.MinecraftServer;
@@ -73,7 +74,7 @@ public class ExtensionMain extends Extension {
 
     private final Map<Player, Instance> lastPlayerInstance = new HashMap<>();
     private final Map<Player, Integer> playerTicksUntilAfk = new HashMap<>();
-    private final Map<Instance, Integer> instanceAfkTimeout = new HashMap<>();
+
 
 
     static {
@@ -86,18 +87,7 @@ public class ExtensionMain extends Extension {
                 .createInstanceContainer(afkDimensionType);
     }
 
-    /**
-     * Sets the amount of ticks a player needs to do nothing to be considered as AFK
-     * @param instance The instance this value is applicable for
-     * @param timeout  The amount of ticks. Negative values never time out, null resets to standard
-     */
-    public void setInstanceTimeout(Instance instance, Integer timeout) {
-        if (timeout == null) {
-            instanceAfkTimeout.remove(instance);
-        } else {
-            instanceAfkTimeout.put(instance, timeout);
-        }
-    }
+
 
     @Override
     public void initialize() {
@@ -144,7 +134,7 @@ public class ExtensionMain extends Extension {
         getEventNode().addListener(PlayerTickEvent.class, event -> {
             Player player = event.getPlayer();
             // TODO: 18.08.21 make default timeout ticks configurable
-            playerTicksUntilAfk.putIfAbsent(player, instanceAfkTimeout.getOrDefault(player.getInstance(), 200));
+            playerTicksUntilAfk.putIfAbsent(player, AfkstomData.getTimeoutForInstance(player.getInstance()));
             if (playerTicksUntilAfk.get(player) > 0) playerTicksUntilAfk.computeIfPresent(player, (p, t) -> t-1);
             if (playerTicksUntilAfk.get(player) == 0) setNowAfk(player, player.getInstance());
             // TODO: 18.08.21 remove debug message
@@ -173,7 +163,7 @@ public class ExtensionMain extends Extension {
 
     private void resetAfkTimer(Player player, Instance instance) {
         // TODO: 18.08.21 make default timeout ticks configurable
-        playerTicksUntilAfk.put(player, instanceAfkTimeout.getOrDefault(instance, 200));
+        playerTicksUntilAfk.put(player, AfkstomData.getTimeoutForInstance(instance));
     }
 
     private void setNowAfk(Player player, Instance instance) {
