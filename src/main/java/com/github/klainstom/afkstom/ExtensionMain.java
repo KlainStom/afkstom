@@ -9,7 +9,13 @@ import net.minestom.server.entity.Player;
 import net.minestom.server.entity.damage.DamageType;
 import net.minestom.server.event.entity.EntityDamageEvent;
 import net.minestom.server.event.instance.AddEntityToInstanceEvent;
-import net.minestom.server.event.player.PlayerMoveEvent;
+import net.minestom.server.event.inventory.InventoryCloseEvent;
+import net.minestom.server.event.inventory.InventoryOpenEvent;
+import net.minestom.server.event.inventory.InventoryPreClickEvent;
+import net.minestom.server.event.item.ItemDropEvent;
+import net.minestom.server.event.item.ItemUpdateStateEvent;
+import net.minestom.server.event.player.*;
+import net.minestom.server.event.trait.PlayerEvent;
 import net.minestom.server.extensions.Extension;
 import net.minestom.server.instance.ChunkGenerator;
 import net.minestom.server.instance.ChunkPopulator;
@@ -27,7 +33,47 @@ import java.util.*;
 public class ExtensionMain extends Extension {
     public static final InstanceContainer AFK_INSTANCE;
 
+    private static final Set<Class<? extends PlayerEvent>> ACTIVITY_EVENTS = Set.of(
+            AdvancementTabEvent.class,
+            AsyncPlayerPreLoginEvent.class,
+            InventoryCloseEvent.class,
+            InventoryOpenEvent.class,
+            InventoryPreClickEvent.class,
+            ItemDropEvent.class,
+            ItemUpdateStateEvent.class,
+            PlayerBlockBreakEvent.class,
+            PlayerBlockInteractEvent.class,
+            PlayerBlockPlaceEvent.class,
+            PlayerChangeHeldSlotEvent.class,
+            PlayerChatEvent.class,
+            PlayerCommandEvent.class,
+            PlayerDeathEvent.class,
+            PlayerEntityInteractEvent.class,
+            PlayerHandAnimationEvent.class,
+            PlayerItemAnimationEvent.class,
+            PlayerMoveEvent.class,
+            PlayerPreEatEvent.class,
+            PlayerResourcePackStatusEvent.class,
+            PlayerRespawnEvent.class,
+            PlayerSettingsChangeEvent.class,
+            PlayerStartDiggingEvent.class,
+            PlayerStartFlyingEvent.class,
+            PlayerStartFlyingWithElytraEvent.class,
+            PlayerStartSneakingEvent.class,
+            PlayerStartSprintingEvent.class,
+            PlayerStopFlyingEvent.class,
+            PlayerStopFlyingWithElytraEvent.class,
+            PlayerStopSneakingEvent.class,
+            PlayerStopSprintingEvent.class,
+            PlayerSwapItemEvent.class,
+            PlayerUseItemEvent.class,
+            PlayerUseItemOnBlockEvent.class
+    );
+
     private final Map<Player, Instance> lastPlayerInstance = new HashMap<>();
+    private final Map<Player, Integer> playerTicksUntilAfk = new HashMap<>();
+    private final Map<Instance, Integer> instanceAfkTimeout = new HashMap<>();
+
 
     static {
         DimensionType afkDimensionType = DimensionType
@@ -37,6 +83,19 @@ public class ExtensionMain extends Extension {
         MinecraftServer.getDimensionTypeManager().addDimension(afkDimensionType);
         AFK_INSTANCE = MinecraftServer.getInstanceManager()
                 .createInstanceContainer(afkDimensionType);
+    }
+
+    /**
+     * Sets the amount of ticks a player needs to do nothing to be considered as AFK
+     * @param instance The instance this value is applicable for
+     * @param timeout  The amount of ticks. Negative values never time out, null resets to standard
+     */
+    public void setInstanceTimeout(Instance instance, Integer timeout) {
+        if (timeout == null) {
+            instanceAfkTimeout.remove(instance);
+        } else {
+            instanceAfkTimeout.put(instance, timeout);
+        }
     }
 
     @Override
@@ -69,15 +128,66 @@ public class ExtensionMain extends Extension {
             event.getPlayer().showTitle(Title.title(Component.text("You are AFK"), Component.empty(),
                     Title.Times.of(Duration.ZERO, Duration.ofDays(30), Duration.ZERO)));
             if (!AFK_INSTANCE.equals(event.getAfkInstance()))
+                // TODO: 18.08.21 add position information
                 event.getPlayer().setInstance(AFK_INSTANCE);
         });
 
-        getEventNode().addListener(PlayerMoveEvent.class, event -> {
-            if (!lastPlayerInstance.containsKey(event.getPlayer())) return;
-            MinecraftServer.getGlobalEventHandler().call(
-                    new NoLongerAfkEvent(event.getPlayer(), lastPlayerInstance.get(event.getPlayer())));
+        getEventNode().addListener(NoLongerAfkEvent.class, event -> {
+            event.getPlayer().resetTitle();
+            lastPlayerInstance.remove(event.getPlayer());
+            if (!AFK_INSTANCE.equals(event.getLastInstance()))
+                // TODO: 18.08.21 add position information
+                event.getPlayer().setInstance(event.getLastInstance());
+        });
+
+        getEventNode().addListener(PlayerTickEvent.class, event -> {
+            Player player = event.getPlayer();
+            // TODO: 18.08.21 make default timeout ticks configurable
+            playerTicksUntilAfk.putIfAbsent(player, instanceAfkTimeout.getOrDefault(player.getInstance(), 200));
+            if (playerTicksUntilAfk.get(player) > 0) playerTicksUntilAfk.computeIfPresent(player, (p, t) -> t-1);
+            if (playerTicksUntilAfk.get(player) == 0) setNowAfk(player, player.getInstance());
+            // TODO: 18.08.21 remove debug message
+            player.sendMessage(Component.text(playerTicksUntilAfk.get(player)));
+        });
+
+        for (Class<? extends PlayerEvent> eventType : ACTIVITY_EVENTS) {
+            // Only reset timer if player actually did something
+            getEventNode().addListener(eventType, event -> {
+                resetAfkTimer(event.getPlayer(), event.getPlayer().getInstance());
+                setNoLongerAfk(event.getPlayer(), event.getPlayer().getInstance());
+            });
+        }
+
+        // Reset timer on instance change
+        getEventNode().addListener(PlayerSpawnEvent.class, event -> {
+            if (!AFK_INSTANCE.equals(event.getSpawnInstance()))
+                resetAfkTimer(event.getPlayer(), event.getSpawnInstance());
+        });
+
+        getEventNode().addListener(PlayerDisconnectEvent.class, event -> {
+            playerTicksUntilAfk.remove(event.getPlayer());
             lastPlayerInstance.remove(event.getPlayer());
         });
+    }
+
+    private void resetAfkTimer(Player player, Instance instance) {
+        // TODO: 18.08.21 make default timeout ticks configurable
+        playerTicksUntilAfk.put(player, instanceAfkTimeout.getOrDefault(instance, 200));
+    }
+
+    private void setNowAfk(Player player, Instance instance) {
+        if (lastPlayerInstance.putIfAbsent(player, instance) == null) {
+            MinecraftServer.getGlobalEventHandler().call(
+                    new NowAfkEvent(player, instance));
+        }
+    }
+
+    private void setNoLongerAfk(Player player, Instance instance) {
+        // TODO: 18.08.21 use instance field to modify the new instance; e.g. always return to lobby
+        if (lastPlayerInstance.containsKey(player)) {
+            MinecraftServer.getGlobalEventHandler().call(
+                    new NoLongerAfkEvent(player, lastPlayerInstance.get(player)));
+        }
     }
 
     @Override
