@@ -184,6 +184,7 @@ public class ExtensionMain extends Extension {
     @Override
     public void terminate() {
         MinecraftServer.LOGGER.info("$name$ terminate.");
+        AFK_INSTANCE.getPlayers().forEach(player -> player.kick(Component.text("This instance was destroyed.")));
         MinecraftServer.getInstanceManager().unregisterInstance(AFK_INSTANCE);
     }
 
